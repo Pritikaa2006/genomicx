@@ -12,9 +12,12 @@ CLINVAR_FILE = os.path.join(
     "clinvar_chr22.vcf"
 )
 
-
 def load_clinvar_annotations():
     annotations = {}
+
+    if not os.path.exists(CLINVAR_FILE):
+        print("ClinVar annotation file not found. Continuing without ClinVar annotations.")
+        return annotations
 
     with open(
         CLINVAR_FILE,
