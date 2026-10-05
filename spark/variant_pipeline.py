@@ -14,9 +14,12 @@ def create_spark_session():
     spark = (
         SparkSession.builder
         .appName("GenomicX-Variant-Pipeline")
-        .master("local[*]")
+        .master("local[1]")
+        .config("spark.driver.host", "127.0.0.1")
+        .config("spark.driver.bindAddress", "127.0.0.1")
         .getOrCreate()
     )
+    return spark
 
     spark.sparkContext.setLogLevel("WARN")
 
