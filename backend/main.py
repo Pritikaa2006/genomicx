@@ -179,6 +179,7 @@ async def analyze(file: UploadFile = File(...)):
     )
 
     temp_path = None
+    spark= None
 
     try:
 
@@ -253,6 +254,12 @@ async def analyze(file: UploadFile = File(...)):
         )
 
     finally:
+
+        if spark is not None:
+            try:
+                spark.stop()
+            except Exception:
+                pass
 
         if (
             temp_path
