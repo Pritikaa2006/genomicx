@@ -1873,7 +1873,170 @@ setData(json);
         {/* ==================================================
             AI ANALYSIS
         ================================================== */}
+{page === 'settings' && (
+  <section className="dashboard">
 
+    <div className="section-head">
+      <div>
+        <div className="eyebrow">
+          05 / SETTINGS
+        </div>
+
+        <h2>
+          Platform settings
+        </h2>
+
+        <p>
+          Manage your GenomicX workspace configuration.
+        </p>
+      </div>
+
+      <span className="pill">
+        Workspace active
+      </span>
+    </div>
+
+    <div className="settings-grid">
+
+      <div className="card settings-card">
+        <div className="settings-icon">R</div>
+
+        <div>
+          <span className="settings-label">
+            PROFILE
+          </span>
+
+          <h3>
+            Researcher
+          </h3>
+
+          <p>
+            GenomicX Research Workspace
+          </p>
+        </div>
+      </div>
+
+      <div className="card settings-card">
+        <div className="settings-icon">●</div>
+
+        <div>
+          <span className="settings-label">
+            API STATUS
+          </span>
+
+          <h3>
+            Connected
+          </h3>
+
+          <p>
+            GenomicX API is available.
+          </p>
+        </div>
+      </div>
+
+      <div className="card settings-card">
+        <div className="settings-icon">GX</div>
+
+        <div>
+          <span className="settings-label">
+            PLATFORM
+          </span>
+
+          <h3>
+            GenomicX
+          </h3>
+
+          <p>
+            Genomic intelligence and variant analytics platform.
+          </p>
+        </div>
+      </div>
+
+      <div className="card settings-card">
+        <div className="settings-icon">VCF</div>
+
+        <div>
+          <span className="settings-label">
+            DATA PROCESSING
+          </span>
+
+          <h3>
+            VCF / VCF.GZ
+          </h3>
+
+          <p>
+            Genomic variant ingestion and quality analysis.
+          </p>
+        </div>
+      </div>
+
+      <div className="card settings-card">
+        <div className="settings-icon">AI</div>
+
+        <div>
+          <span className="settings-label">
+            AI ANALYSIS
+          </span>
+
+          <h3>
+            XGBoost + SHAP
+          </h3>
+
+          <p>
+            Explainable classification of ClinVar-labelled variants.
+          </p>
+        </div>
+      </div>
+
+      <div className="card settings-card">
+        <div className="settings-icon">DB</div>
+
+        <div>
+          <span className="settings-label">
+            STORAGE
+          </span>
+
+          <h3>
+            PostgreSQL + Parquet
+          </h3>
+
+          <p>
+            Structured metadata and processed genomic data storage.
+          </p>
+        </div>
+      </div>
+
+    </div>
+
+    <div className="card settings-about">
+
+      <div className="eyebrow">
+        ABOUT GENOMICX
+      </div>
+
+      <h3>
+        Research-focused genomic intelligence
+      </h3>
+
+      <p>
+        GenomicX combines VCF processing, scalable data
+        processing, variant analytics, machine learning,
+        and explainable AI into a unified research workflow.
+      </p>
+
+      <div className="settings-tags">
+        <span>VCF</span>
+        <span>PySpark</span>
+        <span>PostgreSQL</span>
+        <span>XGBoost</span>
+        <span>SHAP</span>
+        <span>Parquet</span>
+      </div>
+
+    </div>
+
+  </section>
+)}
         {page === 'ai' && (
           <section className="ai-page">
 

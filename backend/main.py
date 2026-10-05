@@ -12,10 +12,6 @@ sys.path.append(
     )
 )
 
-from spark.variant_pipeline import (
-    create_spark_session,
-    process_vcf
-)
 from ml.annotate import (
     load_clinvar_annotations,
     annotate_variant
@@ -172,52 +168,220 @@ async def analyze(file: UploadFile = File(...)):
             detail="Uploaded file is empty."
         )
 
-    suffix = (
-        ".vcf.gz"
-        if file.filename.lower().endswith(".gz")
-        else ".vcf"
-    )
-
-    temp_path = None
-    spark= None
-
     try:
+        # ------------------------------------------
+        # READ VCF WITHOUT STARTING SPARK
+        # ------------------------------------------
 
-        with tempfile.NamedTemporaryFile(
-            delete=False,
-            suffix=suffix
-        ) as temp_file:
+        import gzip
+        import io
 
-            temp_file.write(raw)
-            temp_path = temp_file.name
+        if file.filename.lower().endswith(".gz"):
+            raw = gzip.decompress(raw)
 
-        spark = create_spark_session()
+        text = raw.decode("utf-8", errors="replace")
 
-        project_root = Path(__file__).resolve().parent.parent
+        variants = []
 
-        output_dir = (
-            project_root
-            / "data"
-            / "processed"
-            / "uploaded_variants_parquet"
+        for line in io.StringIO(text):
+
+            line = line.strip()
+
+            if not line or line.startswith("#"):
+                continue
+
+            fields = line.split("\t")
+
+            if len(fields) < 8:
+                continue
+
+            chromosome = fields[0]
+            position = int(fields[1])
+            variant_id = fields[2]
+            reference = fields[3]
+            alternate = fields[4]
+            quality_raw = fields[5]
+            filter_value = fields[6]
+            info = fields[7]
+
+            # ------------------------------------------
+            # QUALITY
+            # ------------------------------------------
+
+            quality = None
+
+            if quality_raw != ".":
+                try:
+                    quality = float(quality_raw)
+                except ValueError:
+                    quality = None
+
+            # ------------------------------------------
+            # INFO FIELDS
+            # ------------------------------------------
+
+            info_values = {}
+
+            for item in info.split(";"):
+
+                if "=" in item:
+                    key, value = item.split("=", 1)
+                    info_values[key] = value
+
+            def get_float(key):
+                value = info_values.get(key)
+
+                if value in (None, "", "."):
+                    return None
+
+                try:
+                    return float(value.split(",")[0])
+                except ValueError:
+                    return None
+
+            def get_int(key):
+                value = info_values.get(key)
+
+                if value in (None, "", "."):
+                    return None
+
+                try:
+                    return int(float(value.split(",")[0]))
+                except ValueError:
+                    return None
+
+            af = get_float("AF")
+            dp = get_int("DP")
+
+            # ------------------------------------------
+            # VARIANT TYPE
+            # ------------------------------------------
+
+            if len(reference) == 1 and len(alternate) == 1:
+                variant_type = "SNP"
+            else:
+                variant_type = "INDEL"
+
+            variants.append({
+                "chromosome": chromosome,
+                "position": position,
+                "variant_id": variant_id,
+                "reference": reference,
+                "alternate": alternate,
+                "quality": quality,
+                "filter": filter_value,
+                "AF": af,
+                "DP": dp,
+                "variant_type": variant_type
+            })
+
+        # ------------------------------------------
+        # BASIC STATISTICS
+        # ------------------------------------------
+
+        total_variants = len(variants)
+
+        snps = sum(
+            1 for v in variants
+            if v["variant_type"] == "SNP"
         )
 
-        output_dir.parent.mkdir(
-            parents=True,
-            exist_ok=True
+        indels = sum(
+            1 for v in variants
+            if v["variant_type"] == "INDEL"
         )
 
-        result = process_vcf(
-            spark,
-            temp_path,
-            str(output_dir)
+        qualities = [
+            v["quality"]
+            for v in variants
+            if v["quality"] is not None
+        ]
+
+        allele_frequencies = [
+            v["AF"]
+            for v in variants
+            if v["AF"] is not None
+        ]
+
+        depths = [
+            v["DP"]
+            for v in variants
+            if v["DP"] is not None
+        ]
+
+        mean_quality = (
+            sum(qualities) / len(qualities)
+            if qualities else None
+        )
+
+        mean_af = (
+            sum(allele_frequencies) /
+            len(allele_frequencies)
+            if allele_frequencies else None
+        )
+
+        mean_dp = (
+            sum(depths) / len(depths)
+            if depths else None
+        )
+
+        # ------------------------------------------
+        # CHROMOSOME DISTRIBUTION
+        # ------------------------------------------
+
+        chromosome_counts = {}
+
+        for variant in variants:
+
+            chromosome = variant["chromosome"]
+
+            chromosome_counts[chromosome] = (
+                chromosome_counts.get(chromosome, 0) + 1
+            )
+
+        chromosome_distribution = [
+            {
+                "chromosome": chromosome,
+                "count": count
+            }
+            for chromosome, count
+            in sorted(chromosome_counts.items())
+        ]
+
+        # ------------------------------------------
+        # QC
+        # ------------------------------------------
+
+        rare_variants = sum(
+            1 for v in variants
+            if v["AF"] is not None and v["AF"] < 0.01
+        )
+
+        common_variants = sum(
+            1 for v in variants
+            if v["AF"] is not None and v["AF"] >= 0.05
+        )
+
+        high_depth_variants = sum(
+            1 for v in variants
+            if v["DP"] is not None and v["DP"] >= 10000
+        )
+
+        pass_variants = sum(
+            1 for v in variants
+            if v["filter"] == "PASS"
+        )
+
+        filtered_variants = sum(
+            1 for v in variants
+            if v["filter"] != "PASS"
         )
 
         # ------------------------------------------
         # CLINVAR ANNOTATION
         # ------------------------------------------
 
-        for variant in result.get("variants", []):
+        for variant in variants:
 
             annotation = annotate_variant(
                 CLINVAR_ANNOTATIONS,
@@ -235,37 +399,51 @@ async def analyze(file: UploadFile = File(...)):
                 annotation["clinvar_id"]
             )
 
-        result["filename"] = file.filename
+        # ------------------------------------------
+        # API RESULT
+        # ------------------------------------------
+
+        result = {
+            "summary": {
+                "variants": total_variants,
+                "snps": snps,
+                "indels": indels,
+                "chromosomes": len(chromosome_distribution),
+                "mean_quality": mean_quality,
+                "mean_af": mean_af,
+                "mean_dp": mean_dp
+            },
+
+            "qc": {
+                "rare_variants": rare_variants,
+                "common_variants": common_variants,
+                "high_depth_variants": high_depth_variants,
+                "pass_variants": pass_variants,
+                "filtered_variants": filtered_variants
+            },
+
+            "chromosome_distribution":
+                chromosome_distribution,
+
+            "variants":
+                variants[:10],
+
+            "filename":
+                file.filename
+        }
 
         return result
 
     except Exception as exc:
 
         print(
-            f"Spark processing error: {exc}"
+            f"VCF processing error: {exc}"
         )
 
         raise HTTPException(
             status_code=500,
-            detail=(
-                f"Spark processing failed: "
-                f"{str(exc)}"
-            )
+            detail=f"VCF processing failed: {str(exc)}"
         )
-
-    finally:
-
-        if spark is not None:
-            try:
-                spark.stop()
-            except Exception:
-                pass
-
-        if (
-            temp_path
-            and os.path.exists(temp_path)
-        ):
-            os.remove(temp_path)
 @app.post("/api/predict")
 def predict(x: PredictionInput):
 
