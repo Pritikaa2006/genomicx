@@ -17,6 +17,10 @@ https://genomicx-dashboard.onrender.com
 **Backend API:**  
 https://genomicx.onrender.com
 
+## 📸 Dashboard
+
+![GenomicX Dashboard](docs/screenshots/dashboard.png)
+
 ---
 
 ## 🎯 Key Features
